@@ -1,2 +1,7 @@
-package com.porunit.customer;public class CustomerRegistrationRequest {
-}
+package com.porunit.customer;
+
+public record CustomerRegistrationRequest(
+        String firstname,
+        String lastname,
+        String email
+) {}
