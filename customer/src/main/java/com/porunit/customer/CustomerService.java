@@ -1,5 +1,6 @@
 package com.porunit.customer;
 
+import com.porunit.amqp.RabbitMQMessageProducer;
 import com.porunit.clients.fraud.FraudCheckResponse;
 import com.porunit.clients.fraud.FraudClient;
 import com.porunit.clients.notification.NotificationClient;
@@ -15,7 +16,8 @@ public class CustomerService {
 
     private final CustomerRepository customerRepository;
     private final FraudClient fraudClient;
-    private final NotificationClient notificationClient;
+    private final RabbitMQMessageProducer messageProducer;
+
     public void registerCustomer(CustomerRegistrationRequest request) {
         Customer customer = Customer.builder()
                 .firstname(request.firstname())
@@ -28,18 +30,23 @@ public class CustomerService {
         //todo: check if customer in db
         customerRepository.saveAndFlush(customer);
 
-       FraudCheckResponse response = fraudClient.isFraudster(customer.getId());
-       if(response.isFraudster()){
-           throw new IllegalStateException("Fraudster");
-       }
+        FraudCheckResponse response = fraudClient.isFraudster(customer.getId());
+        if (response.isFraudster()) {
+            throw new IllegalStateException("Fraudster");
+        }
 
-       //todo: make it async. queue
-       notificationClient.sendNotification(
-              new NotificationRequest(
-                      customer.getId(),
-                      customer.getEmail(),
-                      String.format("Hi %s, welcome to porunit.com", customer.getFirstname())
-              )
-       );
+        NotificationRequest notificationRequest = new NotificationRequest(
+                customer.getId(),
+                customer.getEmail(),
+                String.format("Hi %s, welcome to porunit.com", customer.getFirstname())
+        );
+
+        messageProducer.publish(
+                notificationRequest,
+                "internal.exchange",
+                "internal.notification.routing-key"
+        );
     }
+
+
 }
